@@ -1,7 +1,7 @@
 let canvas = document.getElementById("canvas") as HTMLCanvasElement;
 let context2D: CanvasRenderingContext2D = canvas.getContext("2d");
 
-const MAP_LENGTH = 40;
+const MAP_LENGTH: number = 40;
 
 interface IVec2 {
     x: number,
@@ -66,9 +66,15 @@ for (let attempts = 0; attempts < 120 && rooms.length < 20; attempts++) {
     }
 }
 
-//http://weblog.jamisbuck.org/2011/1/27/maze-generation-growing-tree-algorithm
 
-enum Direction { NORTH, SOUTH, EAST, WEST }
+enum Direction {
+    NORTH = -MAP_LENGTH,
+    SOUTH = MAP_LENGTH,
+    EAST = 1,
+    WEST = -1
+}
+
+const directions: number[] = [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST];
 
 enum TileType { WALL, FLOOR }
 
@@ -81,28 +87,27 @@ for (let i = 0; i < tiles.length; i++) {
     tiles[i] = {type: TileType.WALL};
 }
 
-rooms.forEach(r => {
-    ++r.pos.x;
-    ++r.pos.y;
-    --r.len.x;
-    --r.len.y;
-    for (let i = r.pos.x; i < r.pos.x + r.len.x; i++) {
-        for (let j = r.pos.y; j < r.pos.y + r.len.y; j++) {
-            tiles[i + j * MAP_LENGTH].type = TileType.FLOOR;
+// rooms.forEach(r => {
+//     ++r.pos.x;
+//     ++r.pos.y;
+//     --r.len.x;
+//     --r.len.y;
+//     for (let i = r.pos.x; i < r.pos.x + r.len.x; i++) {
+//         for (let j = r.pos.y; j < r.pos.y + r.len.y; j++) {
+//             tiles[i + j * MAP_LENGTH].type = TileType.FLOOR;
+//         }
+//     }
+// });
+
+//http://weblog.jamisbuck.org/2011/1/27/maze-generation-growing-tree-algorithm
+
+for (let x = 1; x < MAP_LENGTH; x += 2) {
+    for (let y = 1; y < MAP_LENGTH; y += 2) {
+        if (tiles[x + y * MAP_LENGTH].type === TileType.WALL) {
+            buildMaze({x: x, y: y});
         }
     }
-});
-
-function carveMaze(pos: IVec2) {
-
 }
-
-for (let i = 0; i < tiles.length; i++) {
-    if (tiles[i].type == TileType.WALL) {
-        carveMaze(indexToPos(i));
-    }
-}
-
 
 for (let i = 0; i < tiles.length; i++) {
     if (tiles[i].type === TileType.FLOOR) {
@@ -110,3 +115,38 @@ for (let i = 0; i < tiles.length; i++) {
     }
 }
 
+function buildMaze(startPos: IVec2): void {
+    let cells: IVec2[] = [startPos];
+
+    let previousDir: number = null;
+
+    while (cells.length !== 0) {
+        let cell: IVec2 = cells[cells.length - 1];
+        let possibleDirections = directions.filter(d => checkDirection(cell, d));
+
+        if (possibleDirections.length === 0) {
+            cells.splice(possibleDirections.length - 1, 1);
+            previousDir = null;
+        } else {
+            let dir: number;
+            if (possibleDirections.indexOf(previousDir) != -1) {
+                dir = previousDir;
+            } else {
+                dir = possibleDirections[(Math.floor(Math.random() * possibleDirections.length))];
+            }
+            tiles[cell.x + cell.y * MAP_LENGTH + dir].type = TileType.FLOOR;
+            let targetIndex = cell.x + cell.y * MAP_LENGTH + dir * 2;
+            tiles[targetIndex].type = TileType.FLOOR;
+            cells.push(indexToPos(targetIndex));
+            previousDir = dir;
+        }
+    }
+
+}
+
+function checkDirection(cell: IVec2, direction: Direction): boolean {
+    let index = cell.x + cell.y * MAP_LENGTH + direction * 2;
+    let pos = indexToPos(index);
+    return index > 0 && index < tiles.length && tiles[index].type === TileType.WALL
+        && pos.x < MAP_LENGTH && pos.y > 0 && pos.y < MAP_LENGTH;
+}
