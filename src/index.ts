@@ -47,11 +47,11 @@ let rooms: IRect[] = [];
 
 for (let attempts = 0; attempts < 120 && rooms.length < 20; attempts++) {
 
-    let w = Math.floor(Math.random() * 6) + 4;
-    let h = Math.floor(Math.random() * 6) + 4;
+    let w = Math.floor(Math.random() * 3) * 2 + 4;
+    let h = Math.floor(Math.random() * 3) * 2 + 4;
 
-    let x = Math.floor(Math.random() * (MAP_LENGTH - w));
-    let y = Math.floor(Math.random() * (MAP_LENGTH - h));
+    let x = Math.floor(Math.random() * (MAP_LENGTH - w) / 2) * 2;
+    let y = Math.floor(Math.random() * (MAP_LENGTH - h) / 2) * 2;
 
     let room: IRect = {
         pos: {x: x, y: y},
