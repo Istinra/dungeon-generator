@@ -81,12 +81,15 @@ enum TileType { WALL, FLOOR }
 interface ITile {
     type: TileType;
     room: boolean;
+    region: number;
 }
 
 let tiles = new Array<ITile>(MAP_LENGTH * MAP_LENGTH);
 for (let i = 0; i < tiles.length; i++) {
-    tiles[i] = {type: TileType.WALL, room: false};
+    tiles[i] = {type: TileType.WALL, room: false, region: 0};
 }
+
+let currentRegion: number = 1;
 
 rooms.forEach(r => {
     ++r.pos.x;
@@ -97,8 +100,10 @@ rooms.forEach(r => {
         for (let j = r.pos.y; j < r.pos.y + r.len.y; j++) {
             tiles[i + j * MAP_LENGTH].type = TileType.FLOOR;
             tiles[i + j * MAP_LENGTH].room = true;
+            tiles[i + j * MAP_LENGTH].region = currentRegion;
         }
     }
+    currentRegion++;
 });
 
 //http://weblog.jamisbuck.org/2011/1/27/maze-generation-growing-tree-algorithm
@@ -107,13 +112,8 @@ for (let x = 1; x < MAP_LENGTH - 1; x += 2) {
     for (let y = 1; y < MAP_LENGTH - 1; y += 2) {
         if (tiles[x + y * MAP_LENGTH].type === TileType.WALL) {
             buildMaze({x: x, y: y});
+            currentRegion++;
         }
-    }
-}
-
-for (let i = 0; i < tiles.length; i++) {
-    if (tiles[i].type === TileType.FLOOR) {
-        drawPoint(indexToPos(i), tiles[i].room ? "green" : "red");
     }
 }
 
@@ -134,14 +134,16 @@ function buildMaze(startPos: IVec2): void {
             previousDir = null;
         } else {
             let dir: number;
-            if (possibleDirections.indexOf(previousDir) != -1 && Math.random() >  0.25) {
+            if (possibleDirections.indexOf(previousDir) != -1 && Math.random() > 0.25) {
                 dir = previousDir;
             } else {
                 dir = possibleDirections[(Math.floor(Math.random() * possibleDirections.length))];
             }
             tiles[cell.x + cell.y * MAP_LENGTH + dir].type = TileType.FLOOR;
+            tiles[cell.x + cell.y * MAP_LENGTH + dir].region = currentRegion;
             let targetIndex = cell.x + cell.y * MAP_LENGTH + dir * 2;
             tiles[targetIndex].type = TileType.FLOOR;
+            tiles[targetIndex].region = currentRegion;
             cells.push(indexToPos(targetIndex));
             previousDir = dir;
 
@@ -155,4 +157,85 @@ function checkDirection(cell: IVec2, direction: Direction): boolean {
     let boundary: number = index % MAP_LENGTH;
     return boundary > 0 && boundary < 39
         && index > MAP_LENGTH && index < tiles.length - MAP_LENGTH && tiles[index].type === TileType.WALL;
+}
+
+interface IConnector {
+    index: number;
+    regions: number[]
+}
+
+let connectors: IConnector[] = [];
+
+for (let i = 1; i < MAP_LENGTH - 1; i++) {
+    for (let j = 1; j < MAP_LENGTH - 1; j++) {
+        let currentIndex = i + j * MAP_LENGTH;
+        let currentTile = tiles[currentIndex];
+        if (currentTile.type === TileType.WALL) {
+            let surrounding: number[] = [];
+            for (let dir of directions) {
+                let adjacentRegion = tiles[currentIndex + dir].region;
+                if (adjacentRegion > 0 && surrounding.indexOf(adjacentRegion) === -1) {
+                    surrounding.push(adjacentRegion);
+                }
+            }
+            if (surrounding.length > 1) {
+                connectors.push({index: currentIndex, regions: surrounding});
+            }
+        }
+    }
+}
+
+// for (let i = 0; i < connectors.length; i++) {
+//     drawPoint(indexToPos(connectors[i].index), "blue");
+// }
+
+let openRegions: number[] = [];
+
+for (let i = 1; i < currentRegion; i++) {
+    openRegions.push(i);
+}
+
+while (openRegions.length > 0) {
+    let connector: IConnector = connectors[Math.floor(Math.random() * connectors.length)];
+    tiles[connector.index].type = TileType.FLOOR;
+    let regions = connector.regions;
+
+    for (let region of regions) {
+        if (openRegions.indexOf(region) !== -1) {
+            openRegions.splice(openRegions.indexOf(region), 1);
+        }
+    }
+
+    connectors = connectors.filter(c => {
+        for (let i = 0; i < openRegions.length; i++) {
+            if (c.regions.indexOf(openRegions[i]) !== -1) {
+                return true;
+            }
+        }
+        return false;
+    });
+}
+//
+// for (let passes = 0; passes < 10; passes++) {
+//     for (let i = MAP_LENGTH; i < tiles.length - MAP_LENGTH; i++) {
+//         if (tiles[i].type === TileType.WALL || i % MAP_LENGTH < 1) {
+//             continue;
+//         }
+//         let count: number = 0;
+//         for (let dir of directions) {
+//             if (tiles[i + dir].type == TileType.WALL) {
+//                 ++count;
+//             }
+//         }
+//         if (count > 2) {
+//             tiles[i].type = TileType.WALL;
+//         }
+//     }
+// }
+
+
+for (let i = 0; i < tiles.length; i++) {
+    if (tiles[i].type === TileType.FLOOR) {
+        drawPoint(indexToPos(i), tiles[i].room ? "green" : "red");
+    }
 }
