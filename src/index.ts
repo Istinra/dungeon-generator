@@ -190,48 +190,56 @@ for (let i = 1; i < MAP_LENGTH - 1; i++) {
 // }
 
 let openRegions: number[] = [];
+let mergedRegions: { [key: number]: number } = {};
 
 for (let i = 1; i < currentRegion; i++) {
     openRegions.push(i);
+    mergedRegions[i] = i;
 }
 
-while (openRegions.length > 0) {
-    let connector: IConnector = connectors[Math.floor(Math.random() * connectors.length)];
-    tiles[connector.index].type = TileType.FLOOR;
-    let regions = connector.regions;
+while (openRegions.length > 1) {
 
-    for (let region of regions) {
-        if (openRegions.indexOf(region) !== -1) {
-            openRegions.splice(openRegions.indexOf(region), 1);
+    let connector: IConnector = connectors[Math.floor(Math.random() * connectors.length)];
+
+    tiles[connector.index].type = TileType.FLOOR;
+
+    let regions = connector.regions.map(r => mergedRegions[r]);
+    let sources: number[] = regions.slice(1);
+
+    for (let i = 1; i < currentRegion; i++) {
+        if (sources.indexOf(mergedRegions[i]) !== -1) {
+            mergedRegions[i] = regions[0];
+        }
+    }
+
+    for (let source of sources) {
+        if (openRegions.indexOf(source) !== -1) {
+            openRegions.splice(openRegions.indexOf(source), 1);
         }
     }
 
     connectors = connectors.filter(c => {
-        for (let i = 0; i < openRegions.length; i++) {
-            if (c.regions.indexOf(openRegions[i]) !== -1) {
-                return true;
-            }
-        }
-        return false;
+        let uniqueRegions = new Set<number>(c.regions.map(r => mergedRegions[r]));
+        return uniqueRegions.size > 1;
     });
 }
-//
-// for (let passes = 0; passes < 10; passes++) {
-//     for (let i = MAP_LENGTH; i < tiles.length - MAP_LENGTH; i++) {
-//         if (tiles[i].type === TileType.WALL || i % MAP_LENGTH < 1) {
-//             continue;
-//         }
-//         let count: number = 0;
-//         for (let dir of directions) {
-//             if (tiles[i + dir].type == TileType.WALL) {
-//                 ++count;
-//             }
-//         }
-//         if (count > 2) {
-//             tiles[i].type = TileType.WALL;
-//         }
-//     }
-// }
+
+for (let passes = 0; passes < 10; passes++) {
+    for (let i = MAP_LENGTH; i < tiles.length - MAP_LENGTH; i++) {
+        if (tiles[i].type === TileType.WALL || i % MAP_LENGTH < 1) {
+            continue;
+        }
+        let count: number = 0;
+        for (let dir of directions) {
+            if (tiles[i + dir].type == TileType.WALL) {
+                ++count;
+            }
+        }
+        if (count > 2) {
+            tiles[i].type = TileType.WALL;
+        }
+    }
+}
 
 
 for (let i = 0; i < tiles.length; i++) {
