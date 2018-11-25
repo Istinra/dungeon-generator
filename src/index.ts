@@ -185,43 +185,46 @@ for (let i = 1; i < MAP_LENGTH - 1; i++) {
     }
 }
 
-// for (let i = 0; i < connectors.length; i++) {
-//     drawPoint(indexToPos(connectors[i].index), "blue");
-// }
 
-let openRegions: number[] = [];
-let mergedRegions: { [key: number]: number } = {};
+let unconnectedRegions: number[] = [];
 
 for (let i = 1; i < currentRegion; i++) {
-    openRegions.push(i);
-    mergedRegions[i] = i;
+    unconnectedRegions.push(i);
 }
 
-while (openRegions.length > 1) {
+while (unconnectedRegions.length > 1) {
 
     let connector: IConnector = connectors[Math.floor(Math.random() * connectors.length)];
 
     tiles[connector.index].type = TileType.FLOOR;
 
-    let regions = connector.regions.map(r => mergedRegions[r]);
+    let regions = connector.regions;
     let sources: number[] = regions.slice(1);
 
-    for (let i = 1; i < currentRegion; i++) {
-        if (sources.indexOf(mergedRegions[i]) !== -1) {
-            mergedRegions[i] = regions[0];
-        }
-    }
-
     for (let source of sources) {
-        if (openRegions.indexOf(source) !== -1) {
-            openRegions.splice(openRegions.indexOf(source), 1);
+        if (unconnectedRegions.indexOf(source) !== -1) {
+            unconnectedRegions.splice(unconnectedRegions.indexOf(source), 1);
         }
     }
 
-    connectors = connectors.filter(c => {
-        let uniqueRegions = new Set<number>(c.regions.map(r => mergedRegions[r]));
-        return uniqueRegions.size > 1;
-    });
+    for (let i = 0; i < connectors.length; i++) {
+        let connector: IConnector = connectors[i];
+        let uniqueRegions: number[] = [];
+        for (let region of connector.regions) {
+            if (sources.indexOf(region) !== -1) {
+                region = regions[0];
+            }
+            if (uniqueRegions.indexOf(region) === -1) {
+                uniqueRegions.push(region);
+            }
+        }
+        if (uniqueRegions.length > 1) {
+            connector.regions = uniqueRegions;
+        } else {
+            connectors.splice(i, 1);
+            --i;
+        }
+    }
 }
 
 for (let passes = 0; passes < 10; passes++) {
