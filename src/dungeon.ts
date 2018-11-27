@@ -228,21 +228,32 @@ class DungeonGenerator {
 
 
     private cullMaze(): void {
-        for (let passes = 0; passes < 10; passes++) {
-            for (let i = this.width; i < this.tiles.length - this.width; i++) {
-                if (this.tiles[i].type === TileType.WALL || i % this.width < 1) {
-                    continue;
-                }
+
+        //Finds dead ends and fills them in tp prevent overly long corridors
+        for (let i = this.width; i < this.tiles.length - this.width; i++) {
+
+            let target: number = i;
+
+            //Make sure target is within bounds and is of type floor,
+            //this loop will follow a dead end, filling it in up to 5 spaces
+            for (let j = 0; target % this.width > 0 && this.tiles[target].type === TileType.FLOOR && j < 5; j++) {
+                let floorDirection: number;
                 let count: number = 0;
                 for (let dir of this.directions) {
-                    if (this.tiles[i + dir].type == TileType.WALL) {
+                    if (this.tiles[target + dir].type == TileType.WALL) {
                         ++count;
+                    } else {
+                        floorDirection = dir;
                     }
                 }
                 if (count > 2) {
-                    this.tiles[i].type = TileType.WALL;
+                    this.tiles[target].type = TileType.WALL;
+                    target += floorDirection;
+                } else {
+                    break;
                 }
             }
+
         }
     }
 
