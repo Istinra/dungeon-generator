@@ -15,6 +15,11 @@ interface IRect {
     len: IVec2;
 }
 
+interface IConnector {
+    index: number;
+    regions: number[]
+}
+
 class DungeonGenerator {
 
     private readonly tiles: ITile[];
@@ -37,6 +42,8 @@ class DungeonGenerator {
     public generate(): ITile[] {
         this.generateRooms();
         this.generateMaze();
+        this.connectRoomsToMaze();
+        this.cullMaze();
         return this.tiles;
     }
 
@@ -87,11 +94,13 @@ class DungeonGenerator {
 
     //http://weblog.jamisbuck.org/2011/1/27/maze-generation-growing-tree-algorithm
     private generateMaze() {
-        //Loop through all the walls to build out the maze, increments of 2 since the grid needs walls between gaps
-        for (let i = 1; i < this.height * this.width; i += 2) { //TODO could have errors with odd grid sizes
-            if (this.tiles[i].type === TileType.WALL) {
-                this.growMaze(i);
-                this.currentRegion++;
+        for (let y = 1; y < this.height - 1; y += 2) {
+            for (let x = 1; x < this.width - 1; x += 2) {
+                let pos: number = this.posToIndex(x, y);
+                if (this.tiles[pos].type === TileType.WALL) {
+                    this.growMaze(pos);
+                    this.currentRegion++;
+                }
             }
         }
     }
@@ -99,7 +108,7 @@ class DungeonGenerator {
     private growMaze(position: number) {
 
         let startingCell = this.tiles[position];
-        startingCell.type = TileType.WALL;
+        startingCell.type = TileType.FLOOR;
         startingCell.region = this.currentRegion;
 
         let cells: number[] = [position];
@@ -138,15 +147,106 @@ class DungeonGenerator {
             && index > this.width && index < this.tiles.length - this.width && this.tiles[index].type === TileType.WALL;
     }
 
-    private indexToPos(index: number): IVec2 {
-        return {x: index % this.width, y: Math.floor(index / this.height)}
+    private connectRoomsToMaze(): void {
+        let connectors: IConnector[] = this.generateConnectors();
+        let unconnectedRegions: number[] = [];
+
+        for (let i = 1; i < this.currentRegion; i++) {
+            unconnectedRegions.push(i);
+        }
+
+        while (unconnectedRegions.length > 1) {
+
+            let connector: IConnector = connectors[Math.floor(Math.random() * connectors.length)];
+
+            this.tiles[connector.index].type = TileType.FLOOR;
+
+            //From
+            let regions: number[] = connector.regions;
+            //To
+            let sources: number[] = regions.slice(1);
+
+            //Sources are about to be merged into main region, so they become connected
+            for (let source of sources) {
+                if (unconnectedRegions.indexOf(source) !== -1) {
+                    unconnectedRegions.splice(unconnectedRegions.indexOf(source), 1);
+                }
+            }
+
+            for (let i = 0; i < connectors.length; i++) {
+                let connector: IConnector = connectors[i];
+                let uniqueRegions: number[] = [];
+                for (let region of connector.regions) {
+                    //If we merged a region, set it to the region the old region to the one it was merged into
+                    if (sources.indexOf(region) !== -1) {
+                        region = regions[0];
+                    }
+                    //Avoid duplicates
+                    if (uniqueRegions.indexOf(region) === -1) {
+                        uniqueRegions.push(region);
+                    }
+                }
+                //Should connect at least two unconnected regions
+                if (uniqueRegions.length > 1) {
+                    connector.regions = uniqueRegions;
+                } else {
+                    //Small chance for a connector remain so that there isn't always just one door to every room
+                    if (Math.random() < 0.02) {
+                        this.tiles[connector.index].type = TileType.FLOOR;
+                    }
+                    connectors.splice(i, 1);
+                    --i;
+                }
+            }
+        }
+    }
+
+    private generateConnectors(): IConnector[] {
+        let connectors: IConnector[] = [];
+
+        for (let y = 1; y < this.height - 1; y++) {
+            for (let x = 1; x < this.width - 1; x++) {
+                let currentIndex = this.posToIndex(x, y);
+                let currentTile = this.tiles[currentIndex];
+                if (currentTile.type === TileType.WALL) {
+                    let surrounding: number[] = [];
+                    for (let dir of this.directions) {
+                        let adjacentRegion = this.tiles[currentIndex + dir].region;
+                        if (adjacentRegion > 0 && surrounding.indexOf(adjacentRegion) === -1) {
+                            surrounding.push(adjacentRegion);
+                        }
+                    }
+                    if (surrounding.length > 1) {
+                        connectors.push({index: currentIndex, regions: surrounding});
+                    }
+                }
+            }
+        }
+
+        return connectors;
+    }
+
+
+    private cullMaze(): void {
+        for (let passes = 0; passes < 10; passes++) {
+            for (let i = this.width; i < this.tiles.length - this.width; i++) {
+                if (this.tiles[i].type === TileType.WALL || i % this.width < 1) {
+                    continue;
+                }
+                let count: number = 0;
+                for (let dir of this.directions) {
+                    if (this.tiles[i + dir].type == TileType.WALL) {
+                        ++count;
+                    }
+                }
+                if (count > 2) {
+                    this.tiles[i].type = TileType.WALL;
+                }
+            }
+        }
     }
 
     private posToIndex(x: number, y: number): number {
         return x + y * this.width;
-    }
-
-    private posVecToIndex(pos: IVec2): number {
-        return pos.x + pos.y * this.width;
     }
 }
